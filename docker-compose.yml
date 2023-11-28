@@ -1,0 +1,57 @@
+version: '3.9'
+
+services:
+  mailer:
+    container_name: mailer
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: on-failure
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+
+  rabbitmq:
+    container_name: rabbitmq
+    platform: linux/amd64
+    image: rabbitmq:3.13-rc-management
+    hostname: rabbitmq
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: wvhvYuNqPdl
+      RABBITMQ_DEFAULT_PASS: xcyR3OKi7751xbud9ToG
+    #volumes:
+    #  - ./rabbitmq:/var/lib/rabbitmq
+    ports:
+        - "5672:5672"
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 5s
+      timeout: 3s
+      retries: 4
+      start_period: 10s
+
+  mongodb:
+    container_name: mongodb
+    platform: linux/amd64
+    image: mongo:7.0.2
+    hostname: mongodb
+    restart: always
+    environment:
+      MONGO_INITDB_DATABASE: mailer
+      MONGO_INITDB_ROOT_USERNAME: Qa1faztOqmI
+      MONGO_INITDB_ROOT_PASSWORD: 4cPO7Oas2qDxUAQGEbRX
+    #volumes:
+    #  - /opt/mongo/datafiles/db:/data
+    #  - /opt/mongo/configfiles:/etc/mongod
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: [ "CMD","mongosh", "--eval", "db.adminCommand('ping')" ]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
