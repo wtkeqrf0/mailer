@@ -7,7 +7,6 @@ import (
 	"mailer/config"
 	consumerRepository "mailer/internal/consumer/repository"
 	"mailer/internal/consumer/usecase"
-	singleSenderRepository "mailer/internal/single_sender/repository"
 	singleSenderUseCase "mailer/internal/single_sender/usecase"
 	"mailer/pkg/guzzle_logger"
 	"mailer/pkg/logger"
@@ -29,10 +28,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to init logger: %v", err)
 	}
-	apiLogger.Infof("logger successfully started with - Level: %s, InFile: %t (filePath: %s)",
-		cfg.Logger.Level,
-		cfg.Logger.InFile,
-		cfg.Logger.FilePath)
 
 	mongoClient, err := mongoDB.New(cfg.Mongo)
 	if err != nil {
@@ -45,8 +40,8 @@ func main() {
 		apiLogger.Fatalf("failed to init guzzle publisher: %v", err)
 	}
 
-	singleSenderRepo := singleSenderRepository.NewSingleSenderRepo(mongoClient.Collection(collectionTemplates))
-	singleSenderUC, err := singleSenderUseCase.NewSingleSender(cfg.SingleSender, singleSenderRepo, apiLogger)
+	// singleSenderRepo := singleSenderRepository.NewSingleSenderRepo(mongoClient.Collection(collectionTemplates))
+	singleSenderUC, err := singleSenderUseCase.NewSingleSender(cfg.SingleSender)
 	if err != nil {
 		apiLogger.Fatalf("failed to init email single sender connection: %v", err)
 	}
@@ -59,7 +54,7 @@ func main() {
 		consumerUC.ProcessEmail,
 	)
 	if err != nil {
-		apiLogger.Fatalf("failed to start consumer: %v", err)
+		apiLogger.Fatalf("failed to start consuming: %v", err)
 	}
 	defer consumer.Close()
 	apiLogger.Info("awaiting signal...")

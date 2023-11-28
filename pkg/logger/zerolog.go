@@ -63,27 +63,27 @@ func (a *ApiLogger) Debugf(template string, args ...interface{}) {
 }
 
 func (a *ApiLogger) Info(msg string) {
-	go a.logger.Info().Msg(msg)
+	a.logger.Info().Msg(msg)
 }
 
 func (a *ApiLogger) Infof(template string, args ...interface{}) {
-	go a.logger.Info().Msgf(template, args...)
+	a.logger.Info().Msgf(template, args...)
 }
 
 func (a *ApiLogger) Warn(msg string) {
-	go a.logger.Warn().Msg(msg)
+	a.logger.Warn().Msg(msg)
 }
 
 func (a *ApiLogger) Warnf(template string, args ...interface{}) {
-	go a.logger.Warn().Msgf(template, args...)
+	a.logger.Warn().Msgf(template, args...)
 }
 
 func (a *ApiLogger) Error(err error) {
-	go a.logger.Error().Msg(err.Error())
+	a.logger.Error().Msg(err.Error())
 }
 
 func (a *ApiLogger) Errorf(template string, args ...interface{}) {
-	go a.logger.Error().Msgf(template, args...)
+	a.logger.Error().Msgf(template, args...)
 }
 
 func (a *ApiLogger) Panic(msg string) {

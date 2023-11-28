@@ -8,8 +8,6 @@ import (
 	"io"
 	"mailer/config"
 	"mailer/internal/consumer"
-	"mailer/internal/single_sender"
-	"mailer/pkg/logger"
 	"mailer/pkg/mail"
 	"mailer/pkg/ptr"
 	tt "text/template"
@@ -26,26 +24,24 @@ import (
 type SingleSender struct {
 	srv                        *mail.SMTPServer
 	clients                    chan *mail.SMTPClient
-	repo                       single_sender.Repository
 	returnPath, from, errorsTo string
 	isDkimSet                  bool
 	dkim                       dkim.SigOptions
-	log                        logger.Logger
 }
 
-func NewSingleSender(cfg config.EmailConnection, repo single_sender.Repository, log logger.Logger) (*SingleSender, error) {
+func NewSingleSender(cfg config.EmailConnection) (*SingleSender, error) {
 	res := SingleSender{
 		srv:        mail.NewSMTPClient(cfg),
-		clients:    make(chan *mail.SMTPClient),
-		repo:       repo,
+		clients:    make(chan *mail.SMTPClient, 100),
 		from:       fmt.Sprintf(`"%s" <%s>`, cfg.Name, cfg.Username),
 		returnPath: cfg.ReturnPath,
 		errorsTo:   cfg.ErrorsTo,
-		log:        log,
 	}
 
-	if err := res.getClient(); err != nil {
+	if client, err := getClient(res.srv); err != nil {
 		return nil, err
+	} else {
+		res.clients <- client
 	}
 
 	if len(cfg.PrivateKey) != 0 {
@@ -140,29 +136,40 @@ func (s *SingleSender) SendEmail(emailMsg consumer.Email) (recipients []string, 
 		return
 	}
 
-	for {
-		select {
-		case client := <-s.clients:
-			if err = email.SendEnvelopeFrom(s.from, client); err != nil {
-				s.log.Warnf("smtp error: %v")
-				continue
-			}
-			s.clients <- client
-			return
-		case <-time.Tick(time.Millisecond * 250):
-			if err = s.getClient(); err != nil {
-				s.log.Errorf("failed to create smtp client due %v", err)
-			}
-		}
-	}
+	err = s.send(email)
+	return
 }
 
-func (s *SingleSender) getClient() error {
-	client, err := s.srv.Connect()
-	if err != nil {
-		return err
+// send email message without error
+func (s *SingleSender) send(email *mail.Email) error {
+	var (
+		client *mail.SMTPClient
+		err    error
+	)
+	for i := 0; i < 10; i++ {
+		select {
+		case client = <-s.clients:
+
+		case <-time.Tick(time.Millisecond * 250):
+			client, err = getClient(s.srv)
+			if err != nil {
+				continue
+			}
+		}
+		if err = email.SendEnvelopeFrom(s.from, client); err == nil {
+			s.clients <- client
+			return nil
+		}
 	}
-	s.clients <- client
+	return err
+}
+
+// getClient connects new smtp Client
+func getClient(srv *mail.SMTPServer) (*mail.SMTPClient, error) {
+	client, err := srv.Connect()
+	if err != nil {
+		return nil, err
+	}
 	go func() {
 		for range time.Tick(time.Second * 30) {
 			if err = client.Noop(); err != nil {
@@ -170,5 +177,5 @@ func (s *SingleSender) getClient() error {
 			}
 		}
 	}()
-	return nil
+	return client, nil
 }
