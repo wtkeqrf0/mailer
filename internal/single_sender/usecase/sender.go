@@ -12,6 +12,7 @@ import (
 	"mailer/pkg/logger"
 	"mailer/pkg/mail"
 	"mailer/pkg/ptr"
+	"sync"
 	tt "text/template"
 	"time"
 )
@@ -24,11 +25,14 @@ import (
 //go:generate ifacemaker -f *.go -o ../usecase.go -i UseCase -s SingleSender -p single_sender -y "Controller describes methods, implemented by the usecase package."
 //go:generate mockgen -package mock -source ../usecase.go -destination mock/usecase_mock.go
 type SingleSender struct {
+	srv                        *mail.SMTPServer
 	client                     *mail.SMTPClient
 	repo                       single_sender.Repository
 	returnPath, from, errorsTo string
 	isDkimSet                  bool
 	dkim                       dkim.SigOptions
+	log                        logger.Logger
+	m                          sync.Mutex
 }
 
 func NewSingleSender(cfg config.EmailConnection, repo single_sender.Repository, log logger.Logger) (*SingleSender, error) {
@@ -43,25 +47,14 @@ func NewSingleSender(cfg config.EmailConnection, repo single_sender.Repository, 
 		return nil, err
 	}
 
-	go func() {
-		for range time.Tick(time.Second * 30) {
-			if err = client.Noop(); err != nil {
-				log.Warnf("email connection was closed due %v", err)
-				if err = client.Reset(); err != nil {
-					log.Errorf("failed to reconnect due %v", err)
-				} else {
-					log.Info("successfully reconnected")
-				}
-			}
-		}
-	}()
-
 	res := SingleSender{
+		srv:        srv,
 		client:     client,
 		repo:       repo,
 		from:       fmt.Sprintf(`"%s" <%s>`, cfg.Name, cfg.Username),
 		returnPath: cfg.ReturnPath,
 		errorsTo:   cfg.ErrorsTo,
+		log:        log,
 	}
 
 	if len(cfg.PrivateKey) != 0 {
@@ -79,6 +72,13 @@ func NewSingleSender(cfg config.EmailConnection, repo single_sender.Repository, 
 			SignatureExpireIn:     7776000, // in seconds = 90 days
 		}, true
 	}
+
+	go func() {
+		for range time.Tick(time.Second * 30) {
+			res.clientKeepAlive()
+		}
+	}()
+
 	return &res, nil
 }
 
@@ -151,11 +151,33 @@ func (s *SingleSender) SendEmail(emailMsg consumer.Email) (recipients []string, 
 		email.SetDkim(s.dkim)
 	}
 
+	if err = email.Error; err != nil {
+		return
+	}
+
+	s.m.Lock()
+	defer s.m.Unlock()
 	if err = email.SendEnvelopeFrom(s.from, s.client); err == io.EOF {
-		if err = s.client.Reset(); err != nil {
-			return
-		}
+		s.clientKeepAlive()
 		err = email.SendEnvelopeFrom(s.from, s.client)
 	}
 	return
+}
+
+func (s *SingleSender) clientKeepAlive() {
+	s.m.Lock()
+	defer s.m.Unlock()
+	if err := s.client.Noop(); err != nil {
+		s.log.Warnf("email connection was closed due %v", err)
+		var newClient *mail.SMTPClient
+		newClient, err = s.srv.Connect()
+		if err != nil {
+			s.log.Warnf("failed to create new connection due %v", err)
+			return
+		}
+
+		// TODO do with channels or sync
+		*s.client = *newClient
+		s.log.Info("successfully created new connection")
+	}
 }
