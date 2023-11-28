@@ -7,7 +7,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    restart: on-failure
+    restart: unless-stopped
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -19,14 +19,14 @@ services:
     platform: linux/amd64
     image: rabbitmq:3.13-rc-management
     hostname: rabbitmq
-    restart: always
+    restart: unless-stopped
     environment:
       RABBITMQ_DEFAULT_USER: wvhvYuNqPdl
       RABBITMQ_DEFAULT_PASS: xcyR3OKi7751xbud9ToG
     #volumes:
     #  - ./rabbitmq:/var/lib/rabbitmq
     ports:
-        - "5672:5672"
+        - "5678:5672"
     healthcheck:
       test: rabbitmq-diagnostics -q ping
       interval: 5s
@@ -39,7 +39,7 @@ services:
     platform: linux/amd64
     image: mongo:7.0.2
     hostname: mongodb
-    restart: always
+    restart: unless-stopped
     environment:
       MONGO_INITDB_DATABASE: mailer
       MONGO_INITDB_ROOT_USERNAME: Qa1faztOqmI
@@ -48,7 +48,7 @@ services:
     #  - /opt/mongo/datafiles/db:/data
     #  - /opt/mongo/configfiles:/etc/mongod
     ports:
-      - "27017:27017"
+      - "27027:27017"
     healthcheck:
       test: [ "CMD","mongosh", "--eval", "db.adminCommand('ping')" ]
       interval: 5s

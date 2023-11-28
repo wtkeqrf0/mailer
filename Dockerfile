@@ -14,13 +14,12 @@ RUN go mod download
 
 COPY . .
 RUN go build -ldflags="-s -w" -o /app/main cmd/main.go
-COPY /config/config.yml /app/config/config.yml
+COPY /config /app/config
 
 
 FROM alpine:3
 
 WORKDIR /app
 COPY --from=builder /app/main /app/main
-COPY --from=builder /app/config/config.yml /app/config/config.yml
-
+COPY --from=builder /app/config /app/config
 CMD ["./main"]
