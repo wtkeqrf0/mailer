@@ -46,7 +46,12 @@ func NewSingleSender(cfg config.EmailConnection, repo single_sender.Repository, 
 	go func() {
 		for range time.Tick(time.Second * 30) {
 			if err = client.Noop(); err != nil {
-				log.Errorf("email connection was closed due %v", err)
+				log.Warnf("email connection was closed due %v", err)
+				if err = client.Reset(); err != nil {
+					log.Errorf("failed to reconnect due %v", err)
+				} else {
+					log.Info("successfully reconnected")
+				}
 			}
 		}
 	}()
@@ -63,8 +68,8 @@ func NewSingleSender(cfg config.EmailConnection, repo single_sender.Repository, 
 		res.dkim, res.isDkimSet = dkim.SigOptions{
 			Version:          1,
 			PrivateKey:       cfg.PrivateKey,
-			Domain:           "mailru._domainkey.crypto", //TODO
-			Selector:         "mailru",                   //TODO
+			Domain:           "_domainkey.crypto",
+			Selector:         "mailru",
 			Canonicalization: "relaxed/relaxed",
 			Algo:             "rsa-sha256",
 			Headers: []string{"date", "from", "to", "message-id", "subject",
@@ -80,8 +85,11 @@ func NewSingleSender(cfg config.EmailConnection, repo single_sender.Repository, 
 // SendEmail to the specified receivers with given body data.
 //
 // Can also get templates from mongoDB, if found.
-func (s *SingleSender) SendEmail(emailMsg consumer.Email) ([]string, error) {
+func (s *SingleSender) SendEmail(emailMsg consumer.Email) (recipients []string, err error) {
 	email := mail.NewHighPriorityMSG(s.from, s.errorsTo, s.returnPath)
+	defer func() {
+		recipients = email.GetRecipients()
+	}()
 
 	email.SetSubject(emailMsg.Subject)
 	// SetDSN([]mail.DSN{mail.SUCCESS, mail.FAILURE}, false)
@@ -117,7 +125,6 @@ func (s *SingleSender) SendEmail(emailMsg consumer.Email) ([]string, error) {
 			t   interface {
 				Execute(wr io.Writer, data any) error
 			}
-			err error
 		)
 
 		switch part.ContentType {
@@ -127,11 +134,11 @@ func (s *SingleSender) SendEmail(emailMsg consumer.Email) ([]string, error) {
 			t, err = tt.New("").Parse(part.Body)
 		}
 		if err != nil {
-			return email.GetRecipients(), err
+			return
 		}
 
 		if err = t.Execute(buf, emailMsg.PartValues); err != nil {
-			return email.GetRecipients(), err
+			return
 		}
 
 		email.Parts[i] = mail.Part{
@@ -144,5 +151,11 @@ func (s *SingleSender) SendEmail(emailMsg consumer.Email) ([]string, error) {
 		email.SetDkim(s.dkim)
 	}
 
-	return email.GetRecipients(), email.SendEnvelopeFrom(s.from, s.client)
+	if err = email.SendEnvelopeFrom(s.from, s.client); err == io.EOF {
+		if err = s.client.Reset(); err != nil {
+			return
+		}
+		err = email.SendEnvelopeFrom(s.from, s.client)
+	}
+	return
 }

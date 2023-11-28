@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"fmt"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"mailer/internal/consumer"
@@ -26,8 +25,6 @@ func (r *Repository) GetTemplateByName(email *consumer.Email) error {
 	if err != nil {
 		return err
 	}
-
-	fmt.Println(string(bsonFilter))
 
 	if err = r.db.FindOne(context.Background(), bsonFilter).Decode(email); err == mongo.ErrNoDocuments {
 		return nil
