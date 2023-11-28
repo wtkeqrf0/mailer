@@ -21,16 +21,14 @@ services:
     hostname: rabbitmq
     restart: unless-stopped
     environment:
-      RABBITMQ_DEFAULT_USER: wvhvYuNqPdl
-      RABBITMQ_DEFAULT_PASS: xcyR3OKi7751xbud9ToG
-    #volumes:
-    #  - ./rabbitmq:/var/lib/rabbitmq
+      RABBITMQ_DEFAULT_USER: "wvhvYuNqPdl"
+      RABBITMQ_DEFAULT_PASS: "xcyR3OKi7751xbud9ToG"
     ports:
         - "5678:5672"
     healthcheck:
       test: rabbitmq-diagnostics -q ping
-      interval: 5s
-      timeout: 3s
+      interval: 7s
+      timeout: 5s
       retries: 4
       start_period: 10s
 
@@ -40,13 +38,11 @@ services:
     image: mongo:7.0.2
     hostname: mongodb
     restart: unless-stopped
+
     environment:
-      MONGO_INITDB_DATABASE: mailer
-      MONGO_INITDB_ROOT_USERNAME: Qa1faztOqmI
-      MONGO_INITDB_ROOT_PASSWORD: 4cPO7Oas2qDxUAQGEbRX
-    #volumes:
-    #  - /opt/mongo/datafiles/db:/data
-    #  - /opt/mongo/configfiles:/etc/mongod
+      MONGO_INITDB_DATABASE: "mailer"
+      MONGO_INITDB_ROOT_USERNAME: "Qa1faztOqmI"
+      MONGO_INITDB_ROOT_PASSWORD: "4cPO7Oas2qDxUAQGEbRX"
     ports:
       - "27027:27017"
     healthcheck:

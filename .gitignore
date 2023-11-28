@@ -3,3 +3,5 @@
 *.txt
 config/*.yml
 config/*.pem
+
+*.env*
