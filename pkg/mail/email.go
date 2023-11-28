@@ -870,8 +870,7 @@ func (server *SMTPServer) Connect() (*SMTPClient, error) {
 	if server.ConnectTimeout != 0 {
 		smtpConnectChannel = make(chan error, 2)
 		go func() {
-			// TODO delete InsureSkipVerify in tls.Config
-			c, err = smtpConnect(server.CustomConn, server.Host, fmt.Sprintf("%d", server.Port), server.Helo, server.Encryption, &tls.Config{InsecureSkipVerify: true})
+			c, err = smtpConnect(server.CustomConn, server.Host, fmt.Sprintf("%d", server.Port), server.Helo, server.Encryption, new(tls.Config))
 			// send the result
 			smtpConnectChannel <- err
 		}()

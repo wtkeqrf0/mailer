@@ -80,11 +80,8 @@ func NewSingleSender(cfg config.EmailConnection, repo single_sender.Repository, 
 // SendEmail to the specified receivers with given body data.
 //
 // Can also get templates from mongoDB, if found.
-func (s *SingleSender) SendEmail(emailMsg consumer.Email) (recipients []string, err error) {
+func (s *SingleSender) SendEmail(emailMsg consumer.Email) ([]string, error) {
 	email := mail.NewHighPriorityMSG(s.from, s.errorsTo, s.returnPath)
-	defer func() {
-		recipients = email.GetRecipients()
-	}()
 
 	email.SetSubject(emailMsg.Subject)
 	// SetDSN([]mail.DSN{mail.SUCCESS, mail.FAILURE}, false)
@@ -120,6 +117,7 @@ func (s *SingleSender) SendEmail(emailMsg consumer.Email) (recipients []string, 
 			t   interface {
 				Execute(wr io.Writer, data any) error
 			}
+			err error
 		)
 
 		switch part.ContentType {
@@ -129,11 +127,11 @@ func (s *SingleSender) SendEmail(emailMsg consumer.Email) (recipients []string, 
 			t, err = tt.New("").Parse(part.Body)
 		}
 		if err != nil {
-			return
+			return email.GetRecipients(), err
 		}
 
 		if err = t.Execute(buf, emailMsg.PartValues); err != nil {
-			return
+			return email.GetRecipients(), err
 		}
 
 		email.Parts[i] = mail.Part{
@@ -146,10 +144,5 @@ func (s *SingleSender) SendEmail(emailMsg consumer.Email) (recipients []string, 
 		email.SetDkim(s.dkim)
 	}
 
-	if err = email.Error; err != nil {
-		return
-	}
-
-	err = email.Send(s.client)
-	return
+	return email.GetRecipients(), email.SendEnvelopeFrom(s.from, s.client)
 }
