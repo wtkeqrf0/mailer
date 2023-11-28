@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"mailer/config"
 	"net"
 	"net/mail"
 	"net/textproto"
@@ -211,7 +212,7 @@ func NewHighPriorityMSG(from, errorsTo, returnPath string) *Email {
 }
 
 // NewSMTPClient returns the client for send email
-func NewSMTPClient() *SMTPServer {
+func NewSMTPClient(cfg config.EmailConnection) *SMTPServer {
 	server := &SMTPServer{
 		Authentication: AuthAuto,
 		Encryption:     EncryptionSSLTLS,
@@ -219,6 +220,10 @@ func NewSMTPClient() *SMTPServer {
 		ConnectTimeout: 10 * time.Second,
 		SendTimeout:    3 * time.Second,
 		KeepAlive:      true,
+		Host:           cfg.Host,
+		Port:           int(cfg.Port),
+		Username:       cfg.Username,
+		Password:       cfg.Password,
 	}
 	return server
 }

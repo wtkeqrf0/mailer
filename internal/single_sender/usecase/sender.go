@@ -12,7 +12,6 @@ import (
 	"mailer/pkg/logger"
 	"mailer/pkg/mail"
 	"mailer/pkg/ptr"
-	"sync"
 	tt "text/template"
 	"time"
 )
@@ -26,35 +25,27 @@ import (
 //go:generate mockgen -package mock -source ../usecase.go -destination mock/usecase_mock.go
 type SingleSender struct {
 	srv                        *mail.SMTPServer
-	client                     *mail.SMTPClient
+	clients                    chan *mail.SMTPClient
 	repo                       single_sender.Repository
 	returnPath, from, errorsTo string
 	isDkimSet                  bool
 	dkim                       dkim.SigOptions
 	log                        logger.Logger
-	m                          sync.Mutex
 }
 
 func NewSingleSender(cfg config.EmailConnection, repo single_sender.Repository, log logger.Logger) (*SingleSender, error) {
-	srv := mail.NewSMTPClient()
-	srv.Host = cfg.Host
-	srv.Port = int(cfg.Port)
-	srv.Username = cfg.Username
-	srv.Password = cfg.Password
-
-	client, err := srv.Connect()
-	if err != nil {
-		return nil, err
-	}
-
 	res := SingleSender{
-		srv:        srv,
-		client:     client,
+		srv:        mail.NewSMTPClient(cfg),
+		clients:    make(chan *mail.SMTPClient),
 		repo:       repo,
 		from:       fmt.Sprintf(`"%s" <%s>`, cfg.Name, cfg.Username),
 		returnPath: cfg.ReturnPath,
 		errorsTo:   cfg.ErrorsTo,
 		log:        log,
+	}
+
+	if err := res.getClient(); err != nil {
+		return nil, err
 	}
 
 	if len(cfg.PrivateKey) != 0 {
@@ -72,12 +63,6 @@ func NewSingleSender(cfg config.EmailConnection, repo single_sender.Repository, 
 			SignatureExpireIn:     7776000, // in seconds = 90 days
 		}, true
 	}
-
-	go func() {
-		for range time.Tick(time.Second * 30) {
-			res.clientKeepAlive()
-		}
-	}()
 
 	return &res, nil
 }
@@ -155,29 +140,35 @@ func (s *SingleSender) SendEmail(emailMsg consumer.Email) (recipients []string, 
 		return
 	}
 
-	s.m.Lock()
-	defer s.m.Unlock()
-	if err = email.SendEnvelopeFrom(s.from, s.client); err == io.EOF {
-		s.clientKeepAlive()
-		err = email.SendEnvelopeFrom(s.from, s.client)
+	for {
+		select {
+		case client := <-s.clients:
+			if err = email.SendEnvelopeFrom(s.from, client); err != nil {
+				s.log.Warnf("smtp error: %v")
+				continue
+			}
+			s.clients <- client
+			return
+		case <-time.Tick(time.Millisecond * 250):
+			if err = s.getClient(); err != nil {
+				s.log.Errorf("failed to create smtp client due %v", err)
+			}
+		}
 	}
-	return
 }
 
-func (s *SingleSender) clientKeepAlive() {
-	s.m.Lock()
-	defer s.m.Unlock()
-	if err := s.client.Noop(); err != nil {
-		s.log.Warnf("email connection was closed due %v", err)
-		var newClient *mail.SMTPClient
-		newClient, err = s.srv.Connect()
-		if err != nil {
-			s.log.Warnf("failed to create new connection due %v", err)
-			return
-		}
-
-		// TODO do with channels or sync
-		*s.client = *newClient
-		s.log.Info("successfully created new connection")
+func (s *SingleSender) getClient() error {
+	client, err := s.srv.Connect()
+	if err != nil {
+		return err
 	}
+	s.clients <- client
+	go func() {
+		for range time.Tick(time.Second * 30) {
+			if err = client.Noop(); err != nil {
+				return
+			}
+		}
+	}()
+	return nil
 }
