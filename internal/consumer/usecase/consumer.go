@@ -55,8 +55,8 @@ func (s *Consumer) ProcessEmail(b []byte) {
 		return
 	}
 
-	if len(emailMsg.Parts) != 0 && len(emailMsg.Files) != 0 && emailMsg.Subject != "" {
-		s.logger.Warn("email body doesn't have any part OR file OR subject")
+	if (len(emailMsg.Parts) == 0 && len(emailMsg.Files) == 0) || emailMsg.Subject == "" {
+		s.logger.Warn("email body doesn't have any part, file or subject")
 		return
 	}
 
