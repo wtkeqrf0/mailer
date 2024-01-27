@@ -1,0 +1,36 @@
+serviceName: "mailer"
+
+email:
+  singleSender:
+    host: "smtp.mail.ru"
+    port: 465
+    username: "crypto@exnode.ru"
+    password: "S8eerX2N87LeZ8YHixzY"
+    returnPath: "crypto@exnode.ru"
+    name: "Exnode"
+    errorsTo: "qrt.ttv@gmail.com"
+  mailing:
+    host: ""
+    port: 0
+    username: ""
+    password: ""
+    returnPath: ""
+    name: ""
+    errorsTo: ""
+
+rabbit:
+  consumer:
+    url: "amqp://wvhvYuNqPdl:xcyR3OKi7751xbud9ToG@207.154.214.183:5678"
+    queueName: "email"
+  guzzleLogger:
+    url: "amqp://user_logger:AAAAsdufih4iuth4gu41@178.128.206.10:5672"
+    queueName: "log_api"
+
+mongo:
+  url: "mongodb://Qa1faztOqmI:4cPO7Oas2qDxUAQGEbRX@207.154.214.183:27027"
+  dbName: "mailer"
+
+logger:
+  level: "info"
+  inFile: 0
+  filePath: "log.txt"
