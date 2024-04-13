@@ -1,25 +1,33 @@
-FROM golang:1.21.4-alpine3.18 AS builder
-
-LABEL stage=gobuilder
-
-ENV CGO_ENABLED 0
-
-RUN apk update --no-cache && apk add --no-cache tzdata
-
-WORKDIR /mailer
-
-ADD go.mod .
-ADD go.sum .
-RUN go mod download
-
-COPY . .
-RUN go build -ldflags="-s -w" -o /app/main cmd/main.go
-COPY /config /app/config
-
-
-FROM alpine:3
+# Use specific versions for base images
+FROM golang:1.21.9-alpine3.19 AS builder
 
 WORKDIR /app
-COPY --from=builder /app/main /app/main
-COPY --from=builder /app/config /app/config
-CMD ["./main"]
+
+# Copy only necessary files for module downloading
+COPY go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download
+
+# Copy the rest of the application code
+COPY . .
+
+# Build the application with optimized flags
+RUN CGO_ENABLED=0 \
+    GOOS=linux \
+    GOARCH=amd64 \
+    go build -ldflags="-s -w" -o /app/main main.go
+
+# Use a smaller base image for the final stage
+FROM alpine:3.19
+
+WORKDIR /app
+
+# Copy built binary and configuration file
+COPY --from=builder /app/main .
+
+# Expose port
+EXPOSE 8080
+
+# Set the entry point with necessary parameters
+ENTRYPOINT ["./main"]

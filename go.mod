@@ -7,7 +7,6 @@ require (
 	github.com/streadway/amqp v1.1.0
 	github.com/toorop/go-dkim v0.0.0-20201103131630-e1cd1a0a5208
 	go.mongodb.org/mongo-driver v1.12.1
-	go.uber.org/mock v0.3.0
 	google.golang.org/grpc v1.58.2
 	gopkg.in/yaml.v3 v3.0.1
 )

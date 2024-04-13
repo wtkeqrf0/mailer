@@ -1,28 +1,17 @@
 package sender
 
 import (
-	"bytes"
 	"fmt"
 	"github.com/toorop/go-dkim"
-	ht "html/template"
-	"io"
 	"log"
 	"mailer/config"
-	"mailer/internal/consumer"
 	"mailer/pkg/mail"
 	"os"
-	tt "text/template"
 	"time"
 )
 
-// SingleSender represents the client to send emails.
-// The client can send emails using the specified data.
-//
-// UseCase interface and mock.MockUC implementation are generated on the basis of SingleSender realization.
-//
-//go:generate ifacemaker -f *.go -o ../usecase.go -i UseCase -s SingleSender -p single_sender -y "Controller describes methods, implemented by the usecase package."
-//go:generate mockgen -package mock -source ../usecase.go -destination mock/usecase_mock.go
-type SingleSender struct {
+//go:generate ifacemaker -f *.go -o sender_if.go -i Sender -s sender -p sender -y "Sender represents the email client."
+type sender struct {
 	srv        *mail.SMTPServer
 	clientPool chan *mail.SMTPClient // using not sync.Pool cuz chan has type definition
 	isDkimSet  bool
@@ -30,8 +19,8 @@ type SingleSender struct {
 	createMsg  mail.CreateEmailMessage
 }
 
-func NewSingleSender(cfg config.EmailConnection) *SingleSender {
-	res := SingleSender{
+func New(cfg config.Email) Sender {
+	res := sender{
 		srv:        mail.NewSMTPClient(cfg),
 		clientPool: make(chan *mail.SMTPClient, 100),
 		createMsg: mail.NewMSGCreator(
@@ -75,68 +64,11 @@ func NewSingleSender(cfg config.EmailConnection) *SingleSender {
 	return &res
 }
 
-// SendEmail to the specified receivers with given body data.
+// Send to the specified receivers with given body data.
 //
 // Can also get templates from mongoDB, if found.
-func (s *SingleSender) SendEmail(emailMsg *consumer.Email) error {
-	email := s.createMsg().SetSubject(emailMsg.Subject)
-
-	// SetDSN([]mail.DSN{mail.SUCCESS, mail.FAILURE}, false)
-
-	if emailMsg.Sender != "" {
-		email.SetSender(emailMsg.Sender)
-	}
-
-	if emailMsg.ReplyTo != "" {
-		email.SetReplyTo(emailMsg.ReplyTo)
-	}
-
-	if len(emailMsg.To) != 0 {
-		email.AddTo(emailMsg.To...)
-	}
-
-	if len(emailMsg.CopyTo) != 0 {
-		email.AddCc(emailMsg.CopyTo...)
-	}
-
-	if len(emailMsg.BlindCopyTo) != 0 {
-		email.AddBcc(emailMsg.BlindCopyTo...)
-	}
-
-	for _, file := range emailMsg.Files {
-		f := mail.File(*file)
-		email.Attach(&f)
-	}
-
-	email.Parts = make([]mail.Part, len(emailMsg.Parts))
-	for i, part := range emailMsg.Parts {
-		var (
-			buf = new(bytes.Buffer)
-			t   interface {
-				Execute(wr io.Writer, data any) error
-			}
-			err error
-		)
-
-		switch part.ContentType {
-		case consumer.TextHTML, consumer.TextAMP:
-			t, err = ht.New("").Parse(part.Body)
-		default:
-			t, err = tt.New("").Parse(part.Body)
-		}
-		if err != nil {
-			return err
-		}
-
-		if err = t.Execute(buf, emailMsg.PartValues); err != nil {
-			return err
-		}
-
-		email.Parts[i] = mail.Part{
-			ContentType: string(part.ContentType),
-			Body:        buf,
-		}
-	}
+func (s *sender) Send(receivedEmail *mail.Parsable) error {
+	email := receivedEmail.ToEmail(s.createMsg())
 
 	if s.isDkimSet {
 		email.SetDkim(s.dkim)
@@ -149,7 +81,7 @@ func (s *SingleSender) SendEmail(emailMsg *consumer.Email) error {
 }
 
 // send email message without error
-func (s *SingleSender) send(email *mail.Email) error {
+func (s *sender) send(email *mail.Email) error {
 	var (
 		client *mail.SMTPClient
 		err    error

@@ -3,6 +3,7 @@ package mail
 import (
 	"bytes"
 	"encoding/base64"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"mime/quotedprintable"
@@ -86,15 +87,17 @@ func (msg *message) getCID(text string) (cid string) {
 	return
 }
 
+// regular expression to find cids
+var reCID = regexp.MustCompile(`(src|href)="cid:(.*?)"`)
+
 // replaceCIDs replaces the CIDs found in a text string
 // with generated ones
-func (msg *message) replaceCIDs(text string) string {
-	// regular expression to find cids
-	re := regexp.MustCompile(`(src|href)="cid:(.*?)"`)
-	// replace all of the found cids with generated ones
-	for _, matches := range re.FindAllStringSubmatch(text, -1) {
-		cid := msg.getCID(matches[2])
-		text = strings.Replace(text, "cid:"+matches[2], "cid:"+cid, -1)
+func (msg *message) replaceCIDs(text []byte) []byte {
+	// replace all the found cids with generated ones
+	for _, matches := range reCID.FindAllSubmatch(text, -1) {
+		m2 := string(matches[2])
+		cid := msg.getCID(m2)
+		text = bytes.ReplaceAll(text, []byte("cid:"+m2), []byte("cid:"+cid))
 	}
 
 	return text
@@ -215,13 +218,13 @@ func (msg *message) writeBody(body []byte, encoding encoding) {
 	}
 }
 
-func (msg *message) addBody(contentType string, body []byte) {
-	body = []byte(msg.replaceCIDs(string(body)))
+func (msg *message) addBody(part Part) {
+	part.Body = msg.replaceCIDs(part.Body)
 
 	header := make(textproto.MIMEHeader)
-	header.Set("Content-Type", contentType+"; charset="+msg.charset)
+	header.Set("Content-Type", fmt.Sprintf("%s; charset=%s", part.ContentType.String(), msg.charset))
 	header.Set("Content-Transfer-Encoding", msg.encoding.string())
-	msg.write(header, body, msg.encoding)
+	msg.write(header, part.Body, msg.encoding)
 }
 
 var quoteEscaper = strings.NewReplacer("\\", "\\\\", `"`, "\\\"")

@@ -7,11 +7,10 @@ import (
 
 type (
 	Config struct {
-		Server
-		Email
-		Rabbit
-		Mongo
-		Logger
+		Server `yaml:"server"`
+		Email  `yaml:"email"`
+		Rabbit `yaml:"rabbit"`
+		Mongo  `yaml:"mongo"`
 	}
 
 	Server struct {
@@ -19,40 +18,29 @@ type (
 	}
 
 	Rabbit struct {
-		Mails QueueConnection
-		Logs  QueueConnection
-	}
-
-	Email struct {
-		SingleSender EmailConnection
-		Mailing      EmailConnection
+		Email QueueConnection `yaml:"email"`
+		Clog  QueueConnection `yaml:"clog"`
 	}
 
 	Mongo struct {
-		URL    string
-		DbName string
-	}
-
-	Logger struct {
-		Level    string
-		InFile   bool
-		FilePath string
+		Url    string `yaml:"url"`
+		DbName string `yaml:"dbName"`
 	}
 
 	QueueConnection struct {
-		URL       string
-		QueueName string
+		Url       string `yaml:"url"`
+		QueueName string `yaml:"queueName"`
 	}
 
-	EmailConnection struct {
-		Host           string
-		Port           uint16
-		Username       string
-		Password       string
-		ReturnPath     string
-		Name           string
-		PrivateKeyPath string
-		ErrorsTo       string
+	Email struct {
+		Host           string `yaml:"host"`
+		Port           uint16 `yaml:"port"`
+		Username       string `yaml:"username"`
+		Password       string `yaml:"password"`
+		ReturnPath     string `yaml:"returnPath"`
+		Name           string `yaml:"name"`
+		PrivateKeyPath string `yaml:"privateKeyPath"`
+		ErrorsTo       string `yaml:"errorsTo"`
 	}
 )
 

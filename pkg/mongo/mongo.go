@@ -13,13 +13,13 @@ func New(ctx context.Context, params config.Mongo) *mongo.Database {
 	connCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	client, err := mongo.Connect(connCtx, options.Client().ApplyURI(params.URL))
+	client, err := mongo.Connect(connCtx, options.Client().ApplyURI(params.Url))
 	if err != nil {
-		log.Fatalf("failed to init MongoDB conn: %v", err)
+		panic(err)
 	}
 
 	if err = client.Ping(connCtx, nil); err != nil {
-		log.Fatalf("failed to connect to MongoDB: %v", err)
+		panic(err)
 	}
 
 	context.AfterFunc(ctx, closeConn(client))
@@ -28,10 +28,10 @@ func New(ctx context.Context, params config.Mongo) *mongo.Database {
 
 func closeConn(client *mongo.Client) func() {
 	return func() {
-		c, cancel := context.WithTimeout(context.Background(), time.Second*2)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 		defer cancel()
 
-		if err := client.Disconnect(c); err != nil {
+		if err := client.Disconnect(ctx); err != nil {
 			log.Printf("failed to close mongo connection: %v", err)
 		}
 	}

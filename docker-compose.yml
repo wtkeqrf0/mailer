@@ -8,21 +8,23 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
+    volumes:
+      - ./config/config.yaml:/app/config/config.yaml
     depends_on:
-      rabbitmq:
+      rabbit:
         condition: service_healthy
       mongodb:
         condition: service_healthy
 
-  rabbitmq:
-    container_name: rabbitmq
+  rabbit:
+    container_name: rabbit
     platform: linux/amd64
-    image: rabbitmq:3.13-rc-management
-    hostname: rabbitmq
+    image: 3.13.1-management-alpine
+    hostname: mailer-rabbit
     restart: unless-stopped
     environment:
-      RABBITMQ_DEFAULT_USER: "wvhvYuNqPdl"
-      RABBITMQ_DEFAULT_PASS: "xcyR3OKi7751xbud9ToG"
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
     ports:
         - "5678:5672"
     healthcheck:
@@ -32,17 +34,16 @@ services:
       retries: 4
       start_period: 10s
 
-  mongodb:
-    container_name: mongodb
+  mongo:
+    container_name: mailer-mongo
     platform: linux/amd64
     image: mongo:7.0.2
-    hostname: mongodb
+    hostname: mailer-mongo
     restart: unless-stopped
-
     environment:
-      MONGO_INITDB_DATABASE: "mailer"
-      MONGO_INITDB_ROOT_USERNAME: "Qa1faztOqmI"
-      MONGO_INITDB_ROOT_PASSWORD: "4cPO7Oas2qDxUAQGEbRX"
+      MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE}
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
     ports:
       - "27027:27017"
     healthcheck:
@@ -51,3 +52,8 @@ services:
       timeout: 5s
       retries: 3
       start_period: 5s
+
+networks:
+  default:
+    name: cross-logger_default
+    external: true

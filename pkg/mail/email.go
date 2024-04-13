@@ -1,7 +1,6 @@
 package mail
 
 import (
-	"bytes"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -69,8 +68,8 @@ type SMTPClient struct {
 
 // Part represents the different content parts of an email body.
 type Part struct {
-	ContentType string
-	Body        *bytes.Buffer
+	ContentType ContentType
+	Body        []byte
 }
 
 // Encryption type to enum encryption types (None, SSL/TLS, STARTTLS)
@@ -196,23 +195,27 @@ func NewMSG() *Email {
 	return email
 }
 
-// NewHighPriorityMSG creates a new email. It uses UTF-8 by default.
-func NewHighPriorityMSG(from, errorsTo, returnPath string) *Email {
-	return &Email{
-		headers: textproto.MIMEHeader{
-			"MIME-Version": {"1.0"},
-			"From":         {from},
-			"X-Errors-To":  {errorsTo},
-		},
-		from:       from,
-		returnPath: returnPath,
-		Charset:    "UTF-8",
-		encoding:   EncodingQuotedPrintable,
+type CreateEmailMessage func() *Email
+
+// NewMSGCreator creates a new email. It uses UTF-8 by default.
+func NewMSGCreator(from, errorsTo, returnPath string) CreateEmailMessage {
+	return func() *Email {
+		return &Email{
+			headers: textproto.MIMEHeader{
+				"MIME-Version": {"1.0"},
+				"From":         {from},
+				"X-Errors-To":  {errorsTo},
+			},
+			from:       from,
+			returnPath: returnPath,
+			Charset:    "UTF-8",
+			encoding:   EncodingQuotedPrintable,
+		}
 	}
 }
 
 // NewSMTPClient returns the client for send email
-func NewSMTPClient(cfg config.EmailConnection) *SMTPServer {
+func NewSMTPClient(cfg config.Email) *SMTPServer {
 	server := &SMTPServer{
 		Authentication: AuthAuto,
 		Encryption:     EncryptionSSLTLS,
@@ -506,15 +509,15 @@ func (email *Email) SetDkim(options dkim.SigOptions) *Email {
 }
 
 // SetBody sets the body of the email message.
-func (email *Email) SetBody(contentType ContentType, body string) *Email {
+func (email *Email) SetBody(contentType ContentType, body []byte) *Email {
 	if email.Error != nil {
 		return email
 	}
 
 	email.Parts = []Part{
 		{
-			ContentType: contentType.String(),
-			Body:        bytes.NewBufferString(body),
+			ContentType: contentType,
+			Body:        body,
 		},
 	}
 
@@ -529,8 +532,8 @@ func (email *Email) SetBodyData(contentType ContentType, body []byte) *Email {
 
 	email.Parts = []Part{
 		{
-			ContentType: contentType.String(),
-			Body:        bytes.NewBuffer(body),
+			ContentType: contentType,
+			Body:        body,
 		},
 	}
 
@@ -608,8 +611,8 @@ func (email *Email) AddAlternative(contentType ContentType, body []byte) *Email 
 
 	email.Parts = append(email.Parts,
 		Part{
-			ContentType: contentType.String(),
-			Body:        bytes.NewBuffer(body),
+			ContentType: contentType,
+			Body:        body,
 		},
 	)
 
@@ -627,8 +630,8 @@ func (email *Email) AddAlternativeData(contentType ContentType, body []byte) *Em
 
 	email.Parts = append(email.Parts,
 		Part{
-			ContentType: contentType.String(),
-			Body:        bytes.NewBuffer(body),
+			ContentType: contentType,
+			Body:        body,
 		},
 	)
 
@@ -699,7 +702,7 @@ func (email *Email) GetMessage() string {
 	}
 
 	for _, part := range email.Parts {
-		msg.addBody(part.ContentType, part.Body.Bytes())
+		msg.addBody(part)
 	}
 
 	if email.hasAlternativePart() {
