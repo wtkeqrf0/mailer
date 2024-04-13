@@ -1,26 +1,26 @@
 package config
 
 import (
-	"log"
+	"gopkg.in/yaml.v3"
 	"os"
-
-	"github.com/spf13/viper"
 )
 
 type (
 	Config struct {
-		ServiceName string
+		Server
 		Email
 		Rabbit
 		Mongo
 		Logger
 	}
 
+	Server struct {
+		Name string
+	}
+
 	Rabbit struct {
-		Consumer        QueueConnection
-		LoggerPublisher QueueConnection
-		CancelPublisher QueueConnection
-		GuzzleLogger    QueueConnection
+		Mails QueueConnection
+		Logs  QueueConnection
 	}
 
 	Email struct {
@@ -30,7 +30,7 @@ type (
 
 	Mongo struct {
 		URL    string
-		DBName string
+		DbName string
 	}
 
 	Logger struct {
@@ -45,44 +45,26 @@ type (
 	}
 
 	EmailConnection struct {
-		Host       string
-		Port       uint16
-		Username   string
-		Password   string
-		ReturnPath string
-		Name       string
-		PrivateKey []byte `json:"-"`
-		ErrorsTo   string
+		Host           string
+		Port           uint16
+		Username       string
+		Password       string
+		ReturnPath     string
+		Name           string
+		PrivateKeyPath string
+		ErrorsTo       string
 	}
 )
 
-func LoadConfig() (*Config, error) {
-	v := viper.New()
-
-	v.AddConfigPath("config")
-	v.SetConfigName("config")
-	v.SetConfigType("yml")
-	if err := v.ReadInConfig(); err != nil {
-		return nil, err
+func ReadConfigFromFile(configFilePath string) *Config {
+	file, err := os.Open(configFilePath)
+	if err != nil {
+		panic(err)
 	}
 
-	c := new(Config)
-	if err := v.Unmarshal(c); err != nil {
-		log.Fatalf("unable to decode config into struct, %v", err)
-		return nil, err
+	cfg := new(Config)
+	if err = yaml.NewDecoder(file).Decode(cfg); err != nil {
+		panic(err)
 	}
-
-	if secret, err := os.ReadFile("config/single_sender_private_key.pem"); err != nil {
-		log.Printf("single_sender_private_key.pem is not found due %v Dkim is disabled.", err)
-	} else {
-		c.SingleSender.PrivateKey = secret
-	}
-
-	if secret, err := os.ReadFile("config/mailing_private_key.pem"); err != nil {
-		log.Printf("mailing_private_key.pem is not found due %v Dkim is disabled.", err)
-	} else {
-		c.Mailing.PrivateKey = secret
-	}
-
-	return c, nil
+	return cfg
 }

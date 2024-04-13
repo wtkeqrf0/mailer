@@ -1,4 +1,4 @@
-package usecase
+package sender
 
 import (
 	"bytes"
@@ -6,10 +6,11 @@ import (
 	"github.com/toorop/go-dkim"
 	ht "html/template"
 	"io"
+	"log"
 	"mailer/config"
 	"mailer/internal/consumer"
 	"mailer/pkg/mail"
-	"mailer/pkg/ptr"
+	"os"
 	tt "text/template"
 	"time"
 )
@@ -22,32 +23,41 @@ import (
 //go:generate ifacemaker -f *.go -o ../usecase.go -i UseCase -s SingleSender -p single_sender -y "Controller describes methods, implemented by the usecase package."
 //go:generate mockgen -package mock -source ../usecase.go -destination mock/usecase_mock.go
 type SingleSender struct {
-	srv                        *mail.SMTPServer
-	clients                    chan *mail.SMTPClient
-	returnPath, from, errorsTo string
-	isDkimSet                  bool
-	dkim                       dkim.SigOptions
+	srv        *mail.SMTPServer
+	clientPool chan *mail.SMTPClient // using not sync.Pool cuz chan has type definition
+	isDkimSet  bool
+	dkim       dkim.SigOptions
+	createMsg  mail.CreateEmailMessage
 }
 
-func NewSingleSender(cfg config.EmailConnection) (*SingleSender, error) {
+func NewSingleSender(cfg config.EmailConnection) *SingleSender {
 	res := SingleSender{
 		srv:        mail.NewSMTPClient(cfg),
-		clients:    make(chan *mail.SMTPClient, 100),
-		from:       fmt.Sprintf(`"%s" <%s>`, cfg.Name, cfg.Username),
-		returnPath: cfg.ReturnPath,
-		errorsTo:   cfg.ErrorsTo,
+		clientPool: make(chan *mail.SMTPClient, 100),
+		createMsg: mail.NewMSGCreator(
+			fmt.Sprintf(`"%s" <%s>`, cfg.Name, cfg.Username),
+			cfg.ErrorsTo,
+			cfg.ReturnPath,
+		),
 	}
 
+	// test client
 	if client, err := getClient(res.srv); err != nil {
-		return nil, err
+		panic(err)
 	} else {
-		res.clients <- client
+		res.clientPool <- client
 	}
 
-	if len(cfg.PrivateKey) != 0 {
+	// set dkim, if specified
+	if cfg.PrivateKeyPath != "" {
+		privateKey, err := os.ReadFile(cfg.PrivateKeyPath)
+		if err != nil {
+			panic(err)
+		}
+
 		res.dkim, res.isDkimSet = dkim.SigOptions{
 			Version:          1,
-			PrivateKey:       cfg.PrivateKey,
+			PrivateKey:       privateKey,
 			Domain:           "_domainkey.crypto",
 			Selector:         "mailru",
 			Canonicalization: "relaxed/relaxed",
@@ -58,21 +68,19 @@ func NewSingleSender(cfg config.EmailConnection) (*SingleSender, error) {
 			AddSignatureTimestamp: true,
 			SignatureExpireIn:     7776000, // in seconds = 90 days
 		}, true
+	} else {
+		log.Println("dkim is disabled")
 	}
 
-	return &res, nil
+	return &res
 }
 
 // SendEmail to the specified receivers with given body data.
 //
 // Can also get templates from mongoDB, if found.
-func (s *SingleSender) SendEmail(emailMsg consumer.Email) (recipients []string, err error) {
-	email := mail.NewHighPriorityMSG(s.from, s.errorsTo, s.returnPath)
-	defer func() {
-		recipients = email.GetRecipients()
-	}()
+func (s *SingleSender) SendEmail(emailMsg *consumer.Email) error {
+	email := s.createMsg().SetSubject(emailMsg.Subject)
 
-	email.SetSubject(emailMsg.Subject)
 	// SetDSN([]mail.DSN{mail.SUCCESS, mail.FAILURE}, false)
 
 	if emailMsg.Sender != "" {
@@ -96,7 +104,8 @@ func (s *SingleSender) SendEmail(emailMsg consumer.Email) (recipients []string, 
 	}
 
 	for _, file := range emailMsg.Files {
-		email.Attach(ptr.Get(mail.File(*file)))
+		f := mail.File(*file)
+		email.Attach(&f)
 	}
 
 	email.Parts = make([]mail.Part, len(emailMsg.Parts))
@@ -106,6 +115,7 @@ func (s *SingleSender) SendEmail(emailMsg consumer.Email) (recipients []string, 
 			t   interface {
 				Execute(wr io.Writer, data any) error
 			}
+			err error
 		)
 
 		switch part.ContentType {
@@ -115,11 +125,11 @@ func (s *SingleSender) SendEmail(emailMsg consumer.Email) (recipients []string, 
 			t, err = tt.New("").Parse(part.Body)
 		}
 		if err != nil {
-			return
+			return err
 		}
 
 		if err = t.Execute(buf, emailMsg.PartValues); err != nil {
-			return
+			return err
 		}
 
 		email.Parts[i] = mail.Part{
@@ -132,12 +142,10 @@ func (s *SingleSender) SendEmail(emailMsg consumer.Email) (recipients []string, 
 		email.SetDkim(s.dkim)
 	}
 
-	if err = email.Error; err != nil {
-		return
+	if email.Error != nil {
+		return email.Error
 	}
-
-	err = s.send(email)
-	return
+	return s.send(email)
 }
 
 // send email message without error
@@ -148,16 +156,15 @@ func (s *SingleSender) send(email *mail.Email) error {
 	)
 	for i := 0; i < 10; i++ {
 		select {
-		case client = <-s.clients:
-
-		case <-time.Tick(time.Millisecond * 250):
+		case client = <-s.clientPool:
+		case <-time.Tick(time.Millisecond * 250): // to avoid creating unnecessary clients
 			client, err = getClient(s.srv)
 			if err != nil {
 				continue
 			}
 		}
-		if err = email.SendEnvelopeFrom(s.from, client); err == nil {
-			s.clients <- client
+		if err = email.Send(client); err == nil {
+			s.clientPool <- client // client is healthy - insert in pool
 			return nil
 		}
 	}

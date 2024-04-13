@@ -1,66 +1,46 @@
 package main
 
 import (
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/pkgerrors"
+	"context"
+	"flag"
 	"log"
 	"mailer/config"
 	consumerRepository "mailer/internal/consumer/repository"
 	"mailer/internal/consumer/usecase"
 	singleSenderUseCase "mailer/internal/single_sender/usecase"
-	"mailer/pkg/guzzle_logger"
-	"mailer/pkg/logger"
-	"mailer/pkg/mongodb"
-	rabbitConsumer "mailer/pkg/rabbit/consumer"
+	"mailer/pkg/clog"
+	"mailer/pkg/mongo"
+	"mailer/pkg/rabbit"
 	"os"
 	"os/signal"
 	"syscall"
 )
 
 func main() {
-	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
-	cfg, err := config.LoadConfig()
-	if err != nil {
-		log.Fatalf("failed to load config.yml: %v", err)
-	}
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
 
-	apiLogger, err := logger.NewApiLogger(cfg.Logger, cfg.ServiceName)
-	if err != nil {
-		log.Fatalf("failed to init logger: %v", err)
-	}
+	var confPath string
+	flag.StringVar(&confPath, "config-path", "./config/config.yaml", "Path to config file")
+	flag.Parse()
 
-	mongoClient, err := mongoDB.New(cfg.Mongo)
-	if err != nil {
-		apiLogger.Fatalf("failed to init mongo connection: %v", err)
-	}
-	const collectionTemplates = "templates"
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
-	guzLog, err := guzzle_logger.New(cfg.ServiceName, "email_single_sender", apiLogger, cfg.Rabbit.GuzzleLogger)
-	if err != nil {
-		apiLogger.Fatalf("failed to init guzzle publisher: %v", err)
-	}
-
-	// singleSenderRepo := singleSenderRepository.NewSingleSenderRepo(mongoClient.Collection(collectionTemplates))
-	singleSenderUC, err := singleSenderUseCase.NewSingleSender(cfg.SingleSender)
-	if err != nil {
-		apiLogger.Fatalf("failed to init email single sender connection: %v", err)
-	}
-
-	consumerRepo := consumerRepository.NewConsumerRepo(mongoClient.Collection(collectionTemplates))
-	consumerUC := usecase.NewConsumer(apiLogger, guzLog, consumerRepo, singleSenderUC)
-
-	consumer, err := rabbitConsumer.StartConsuming(
-		cfg.Rabbit.Consumer,
-		consumerUC.ProcessEmail,
+	// ---------------- may fail ----------------
+	var (
+		cfg           = config.ReadConfigFromFile[config.Config](confPath)
+		db            = mongo.New(ctx, cfg.Mongo)
+		loggerConn    = rabbit.NewConn(ctx, cfg.Rabbit.Logs.URL).Publisher(cfg.Rabbit.Logs.QueueName)
+		emailConsumer = rabbit.NewConn(ctx, cfg.Rabbit.Mails.URL).Consumer(ctx, cfg.Rabbit.Mails.QueueName)
 	)
-	if err != nil {
-		apiLogger.Fatalf("failed to start consuming: %v", err)
-	}
-	defer consumer.Close()
-	apiLogger.Info("awaiting signal...")
 
-	// block main thread - wait for shutdown signal
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-	apiLogger.Infof("received signal %v. Shutdown...", <-sigs)
+	// --------------- can't fail ---------------
+	clogger := clog.New(loggerConn, cfg.Server.Name)
+
+	singleSenderUC := singleSenderUseCase.NewSingleSender(cfg.SingleSender)
+
+	consumerRepo := consumerRepository.NewConsumerRepo(db.Collection("templates"))
+	consumerUC := usecase.NewConsumer(clogger, consumerRepo, singleSenderUC, emailConsumer)
+
+	consumerUC.ProcessEmails()
 }
