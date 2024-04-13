@@ -1,3 +1,5 @@
+Config example:
+```yaml
 server:
   name: EMAIL_SENDER
 
@@ -16,9 +18,10 @@ rabbit:
     url: amqp://user:password@rabbit:5678
     queueName: email
   clog:
-    url: amqp://admin:admin@rabbit:5672/
+    url: amqp://admin:admin@rabbit:5672
     queue: logs
 
 mongo:
   url: mongodb://user:password@mongo:27027
   dbName: mailer
+```
