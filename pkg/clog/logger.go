@@ -36,5 +36,7 @@ func (l *Logger) SendLog(msg string, msgLevel Level) {
 		MessageType: msgLevel.String(),
 		TimeDate:    time.Now().In(l.location),
 	})
-	l.produce(jsonMsg)
+	if err := l.produce(jsonMsg); err != nil {
+		log.Printf("failed to publish, %v", err)
+	}
 }

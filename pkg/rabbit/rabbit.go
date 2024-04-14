@@ -35,12 +35,25 @@ func NewConn(ctx context.Context, url string) *Connection {
 	}
 }
 
-type Produce func(msg json.RawMessage)
+type Produce func(msg json.RawMessage) error
 
 // Publisher sends a message to a specified exchange with a routing key
 func (r *Connection) Publisher(queueName string) Produce {
-	return func(msg json.RawMessage) {
-		if err := r.channel.Publish(
+	if queue, err := r.channel.QueueDeclare(
+		queueName, // Queue name
+		true,      // Durable
+		false,     // Delete when unused
+		false,     // Exclusive
+		false,     // No-wait
+		nil,
+	); err != nil {
+		panic(err)
+	} else {
+		queueName = queue.Name
+	}
+
+	return func(msg json.RawMessage) error {
+		return r.channel.Publish(
 			"",        // Exchange
 			queueName, // Routing key
 			false,     // Mandatory
@@ -49,9 +62,7 @@ func (r *Connection) Publisher(queueName string) Produce {
 				ContentType: "application/json",
 				Body:        msg,
 			},
-		); err != nil {
-			log.Println(err.Error())
-		}
+		)
 	}
 }
 
