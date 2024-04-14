@@ -5,23 +5,23 @@ server:
 
 email:
   host: ""
-  port: 465
+  port: ""
   username: ""
   password: ""
   returnPath: ""
-  name: Kain Technologies
+  name: ""
   errorsTo: ""
   privateKeyPath: ""
 
 rabbit:
   email:
-    url: amqp://user:password@rabbit:5678
-    queueName: email
+    url: amqp://user:password@rabbit:5672
+    queueName: ""
   clog:
-    url: amqp://admin:admin@rabbit:5672
-    queue: logs
+    url: amqp://user:password@rabbit:5672
+    queue: ""
 
 mongo:
-  url: mongodb://user:password@mongo:27027
-  dbName: mailer
+  url: mongodb://user:password@mongo:27017
+  dbName: ""
 ```

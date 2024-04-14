@@ -29,9 +29,9 @@ func main() {
 	var (
 		cfg           = config.ReadConfigFromFile(confPath)
 		db            = mongo.New(ctx, cfg.Mongo)
-		loggerConn    = rabbit.NewConn(ctx, cfg.Rabbit.Logs.Url).Publisher(cfg.Rabbit.Logs.QueueName)
-		emailConsumer = rabbit.NewConn(ctx, cfg.Rabbit.Mails.Url).Consumer(ctx, cfg.Rabbit.Mails.QueueName)
-		sending       = sender.New(cfg.Email)
+		loggerConn    = rabbit.NewConn(ctx, cfg.Rabbit.Clog.Url).Publisher(cfg.Rabbit.Clog.QueueName)
+		emailConsumer = rabbit.NewConn(ctx, cfg.Rabbit.Email.Url).Consumer(ctx, cfg.Rabbit.Email.QueueName)
+		sending       = sender.New(ctx, cfg.Email)
 	)
 
 	// --------------- can't fail ---------------

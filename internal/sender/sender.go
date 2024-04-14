@@ -1,6 +1,7 @@
 package sender
 
 import (
+	"context"
 	"fmt"
 	"github.com/toorop/go-dkim"
 	"log"
@@ -19,8 +20,8 @@ type sender struct {
 	createMsg  mail.CreateEmailMessage
 }
 
-func New(cfg config.Email) Sender {
-	res := sender{
+func New(ctx context.Context, cfg config.Email) Sender {
+	s := sender{
 		srv:        mail.NewSMTPClient(cfg),
 		clientPool: make(chan *mail.SMTPClient, 100),
 		createMsg: mail.NewMSGCreator(
@@ -31,11 +32,13 @@ func New(cfg config.Email) Sender {
 	}
 
 	// test client
-	if client, err := getClient(res.srv); err != nil {
+	if client, err := getClient(s.srv); err != nil {
 		panic(err)
 	} else {
-		res.clientPool <- client
+		s.clientPool <- client
 	}
+
+	context.AfterFunc(ctx, s.clean())
 
 	// set dkim, if specified
 	if cfg.PrivateKeyPath != "" {
@@ -44,7 +47,7 @@ func New(cfg config.Email) Sender {
 			panic(err)
 		}
 
-		res.dkim, res.isDkimSet = dkim.SigOptions{
+		s.dkim, s.isDkimSet = dkim.SigOptions{
 			Version:          1,
 			PrivateKey:       privateKey,
 			Domain:           "_domainkey.crypto",
@@ -61,7 +64,7 @@ func New(cfg config.Email) Sender {
 		log.Println("dkim is disabled")
 	}
 
-	return &res
+	return &s
 }
 
 // Send to the specified receivers with given body data.
@@ -96,7 +99,7 @@ func (s *sender) send(email *mail.Email) error {
 			}
 		}
 		if err = email.Send(client); err == nil {
-			s.clientPool <- client // client is healthy - insert in pool
+			s.clientPool <- client // client is healthy - insert into pool
 			return nil
 		}
 	}
@@ -117,4 +120,20 @@ func getClient(srv *mail.SMTPServer) (*mail.SMTPClient, error) {
 		}
 	}()
 	return client, nil
+}
+
+func (s *sender) clean() func() {
+	return func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+		defer cancel()
+
+		for {
+			select {
+			case client := <-s.clientPool:
+				_ = client.Quit()
+			case <-ctx.Done():
+				return
+			}
+		}
+	}
 }

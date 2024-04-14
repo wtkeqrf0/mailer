@@ -49,7 +49,10 @@ func (r *router) check(msg amqp.Delivery) {
 		var err error
 		switch {
 		case re != nil:
-			r.logger.SendLog(fmt.Sprint(re), clog.LevelFatal)
+			if err, _ = re.(error); err == nil {
+				err = fmt.Errorf("%v", re)
+			}
+			r.logger.SendLog(err.Error(), clog.LevelFatal)
 			err = msg.Nack(false, false)
 		case resend:
 			r.logger.SendLog(cause, clog.LevelError)

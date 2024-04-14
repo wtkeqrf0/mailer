@@ -13,31 +13,13 @@ services:
     depends_on:
       rabbit:
         condition: service_healthy
-      mongodb:
+      mongo:
         condition: service_healthy
-
-  rabbit:
-    container_name: rabbit
-    platform: linux/amd64
-    image: 3.13.1-management-alpine
-    hostname: mailer-rabbit
-    restart: unless-stopped
-    environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
-    ports:
-        - "5678:5672"
-    healthcheck:
-      test: rabbitmq-diagnostics -q ping
-      interval: 7s
-      timeout: 5s
-      retries: 4
-      start_period: 10s
 
   mongo:
     container_name: mailer-mongo
     platform: linux/amd64
-    image: mongo:7.0.2
+    image: mongo:7.0.8
     hostname: mailer-mongo
     restart: unless-stopped
     environment:
@@ -52,6 +34,25 @@ services:
       timeout: 5s
       retries: 3
       start_period: 5s
+
+  rabbit:
+    container_name: rabbit
+    platform: linux/amd64
+    image: rabbitmq:3.13.1-management-alpine
+    hostname: mailer-rabbit
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+    ports:
+      - "5678:5672"
+      - "15678:15672"
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 7s
+      timeout: 5s
+      retries: 4
+      start_period: 10s
 
 networks:
   default:

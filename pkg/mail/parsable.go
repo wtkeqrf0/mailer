@@ -91,7 +91,7 @@ func (pe *Parsable) ToEmail(dsc *Email) *Email {
 			return nil
 		}
 
-		buf := bytes.NewBuffer(make([]byte, len(part.Body)))
+		buf := bytes.NewBuffer(make([]byte, 0, len(part.Body)))
 		if err = t.Execute(buf, pe.PartValues); err != nil {
 			email.Error = err
 			return nil
@@ -115,5 +115,5 @@ func (pe *Parsable) Recipients(delimiter string) string {
 	if sb.Len() == 0 {
 		return ""
 	}
-	return sb.String()[:sb.Len()-len(delimiter)-1]
+	return sb.String()[:sb.Len()-len(delimiter)]
 }
