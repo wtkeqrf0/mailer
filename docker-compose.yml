@@ -18,7 +18,6 @@ services:
 
   mongo:
     container_name: mailer-mongo
-    platform: linux/amd64
     image: mongo:7.0.8
     hostname: mailer-mongo
     restart: unless-stopped
@@ -34,6 +33,8 @@ services:
       timeout: 5s
       retries: 3
       start_period: 5s
+    volumes:
+      - ./mongo_data:/data/db
 
   rabbit:
     container_name: rabbit
@@ -54,7 +55,7 @@ services:
       retries: 4
       start_period: 10s
 
-networks:
-  default:
-    name: cross-logger_default
-    external: true
+# networks:
+#   default:
+#     name: cross-logger_default
+#     external: true

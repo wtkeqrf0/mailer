@@ -45,5 +45,6 @@ func main() {
 		)
 	)
 
+	go clogger.SendLog("Service started successfully", clog.LevelInfo)
 	routing.ProcessEmails()
 }
