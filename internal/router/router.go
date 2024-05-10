@@ -53,10 +53,10 @@ func (r *router) check(msg amqp.Delivery) {
 				err = fmt.Errorf("%v", re)
 			}
 			r.logger.SendLog(err.Error(), clog.LevelFatal)
-			err = msg.Nack(false, false)
+			err = msg.Nack(false, true)
 		case resend:
 			r.logger.SendLog(cause, clog.LevelError)
-			err = msg.Nack(false, false)
+			err = msg.Nack(false, true)
 		default:
 			log.Println(cause)
 			err = msg.Ack(false)
@@ -87,7 +87,7 @@ func (r *router) processEmail(body []byte) (bool, string) {
 	}
 
 	if err := r.emailSender.Send(emailMsg); err != nil {
-		return true, fmt.Sprintf("failed to send email to %s, %v", emailMsg.Recipients(", "), err)
+		return true, fmt.Sprintf("failed to send email to %s: %v", emailMsg.Recipients(", "), err)
 	}
 	return false, fmt.Sprintf("email was sent to %s", emailMsg.Recipients(", "))
 }

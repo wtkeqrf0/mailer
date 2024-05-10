@@ -107,7 +107,7 @@ func (encoding encoding) string() string {
 	return encodingTypes[encoding]
 }
 
-type ContentType int
+type ContentType uint8
 
 const (
 	// TextPlain sets body type to text/plain in message body

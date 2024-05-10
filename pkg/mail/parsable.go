@@ -24,49 +24,40 @@ type Parsable struct {
 }
 
 type ServiceSettings struct {
-	Name   Template // templateName, which will be read from db.
-	Locale string   // "en" or "ru". "en" by default.
+	Name   string // templateName, which will be read from db.
+	Locale string // "en" or "ru". "en" by default.
 }
 
-type Template uint8
-
-// possible template values.
-const (
-	TemplateHello Template = iota
-	TemplateConfirmEmail
-	TemplateChangePassword
-)
-
-func (pe *Parsable) ToEmail(dsc *Email) *Email {
-	email := dsc.SetSubject(pe.Subject)
+func (p *Parsable) ToEmail(dsc *Email) *Email {
+	email := dsc.SetSubject(p.Subject)
 
 	// SetDSN([]mail.DSN{mail.SUCCESS, mail.FAILURE}, false)
 
-	if pe.Sender != "" {
-		email.SetSender(pe.Sender)
+	if p.Sender != "" {
+		email.SetSender(p.Sender)
 	}
 
-	if pe.ReplyTo != "" {
-		email.SetReplyTo(pe.ReplyTo)
+	if p.ReplyTo != "" {
+		email.SetReplyTo(p.ReplyTo)
 	}
 
-	if len(pe.To) != 0 {
-		email.AddTo(pe.To...)
+	if len(p.To) != 0 {
+		email.AddTo(p.To...)
 	}
 
-	if len(pe.CopyTo) != 0 {
-		email.AddCc(pe.CopyTo...)
+	if len(p.CopyTo) != 0 {
+		email.AddCc(p.CopyTo...)
 	}
 
-	if len(pe.BlindCopyTo) != 0 {
-		email.AddBcc(pe.BlindCopyTo...)
+	if len(p.BlindCopyTo) != 0 {
+		email.AddBcc(p.BlindCopyTo...)
 	}
 
-	for _, file := range pe.Files {
+	for _, file := range p.Files {
 		email.Attach(file)
 	}
 
-	email.Parts = pe.Parts
+	email.Parts = p.Parts
 
 	// insert template values
 	for i, part := range email.Parts {
@@ -92,7 +83,7 @@ func (pe *Parsable) ToEmail(dsc *Email) *Email {
 		}
 
 		buf := bytes.NewBuffer(make([]byte, 0, len(part.Body)))
-		if err = t.Execute(buf, pe.PartValues); err != nil {
+		if err = t.Execute(buf, p.PartValues); err != nil {
 			email.Error = err
 			return nil
 		}
@@ -101,15 +92,15 @@ func (pe *Parsable) ToEmail(dsc *Email) *Email {
 	return email
 }
 
-func (pe *Parsable) Recipients(delimiter string) string {
+func (p *Parsable) Recipients(delimiter string) string {
 	sb := new(strings.Builder)
-	for _, to := range pe.To {
+	for _, to := range p.To {
 		sb.WriteString(to + delimiter)
 	}
-	for _, to := range pe.CopyTo {
+	for _, to := range p.CopyTo {
 		sb.WriteString(to + delimiter)
 	}
-	for _, to := range pe.BlindCopyTo {
+	for _, to := range p.BlindCopyTo {
 		sb.WriteString(to + delimiter)
 	}
 	if sb.Len() == 0 {
