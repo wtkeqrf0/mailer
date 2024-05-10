@@ -4,3 +4,5 @@
 **/*.pem
 
 **/*.env*
+
+./mongo_data
