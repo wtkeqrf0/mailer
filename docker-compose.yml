@@ -11,7 +11,7 @@ services:
     volumes:
       - ./config/config.yaml:/app/config/config.yaml
     depends_on:
-      rabbit:
+      mrabbit:
         condition: service_healthy
       mongo:
         condition: service_healthy
