@@ -37,7 +37,7 @@ services:
       - ./mongo_data:/data/db
 
   rabbit:
-    container_name: rabbit
+    container_name: mailer-rabbit
     platform: linux/amd64
     image: rabbitmq:3.13.1-management-alpine
     hostname: mailer-rabbit
