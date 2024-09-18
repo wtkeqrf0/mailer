@@ -22,9 +22,9 @@ services:
     hostname: mailer-mongo
     restart: unless-stopped
     environment:
-      MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE}
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+      MONGO_INITDB_DATABASE: mailer
+      MONGO_INITDB_ROOT_USERNAME: user
+      MONGO_INITDB_ROOT_PASSWORD: pass
     ports:
       - "27027:27017"
     healthcheck:
@@ -43,8 +43,8 @@ services:
     hostname: mailer-rabbit
     restart: unless-stopped
     environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+      RABBITMQ_DEFAULT_USER: user
+      RABBITMQ_DEFAULT_PASS: pass
     ports:
       - "5678:5672"
       - "15678:15672"
@@ -58,4 +58,3 @@ services:
 networks:
   default:
     name: cross-logger_default
-    external: true

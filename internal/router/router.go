@@ -6,7 +6,6 @@ import (
 	"github.com/streadway/amqp"
 	"log"
 	"mailer/internal/sender"
-	"mailer/pkg/clog"
 	"mailer/pkg/mail"
 )
 
@@ -17,15 +16,13 @@ import (
 //
 //go:generate ifacemaker -f *.go -o router_if.go -i Router -s router -p router -y "Router represents the message router."
 type router struct {
-	logger      *clog.Logger
 	repo        Repository
 	emailSender sender.Sender
 	ch          <-chan amqp.Delivery
 }
 
-func New(logger *clog.Logger, repo Repository, sender sender.Sender, ch <-chan amqp.Delivery) Router {
+func New(repo Repository, sender sender.Sender, ch <-chan amqp.Delivery) Router {
 	return &router{
-		logger:      logger,
 		repo:        repo,
 		emailSender: sender,
 		ch:          ch,
@@ -33,7 +30,6 @@ func New(logger *clog.Logger, repo Repository, sender sender.Sender, ch <-chan a
 }
 
 func (r *router) ProcessEmails() {
-	r.logger.SendLog("server started", clog.LevelInfo)
 	for msg := range r.ch {
 		go r.check(msg)
 	}
@@ -52,17 +48,17 @@ func (r *router) check(msg amqp.Delivery) {
 			if err, _ = re.(error); err == nil {
 				err = fmt.Errorf("%v", re)
 			}
-			r.logger.SendLog(err.Error(), clog.LevelFatal)
+			log.Println(err.Error())
 			err = msg.Nack(false, true)
 		case resend:
-			r.logger.SendLog(cause, clog.LevelError)
+			log.Println(cause)
 			err = msg.Nack(false, true)
 		default:
 			log.Println(cause)
 			err = msg.Ack(false)
 		}
 		if err != nil {
-			r.logger.SendLog(fmt.Sprintf("failed to proceed queue delivery, %v", cause), clog.LevelFatal)
+			log.Printf("failed to proceed queue delivery, %v", cause)
 		}
 	}()
 	resend, cause = r.processEmail(msg.Body)

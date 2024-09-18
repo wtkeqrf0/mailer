@@ -61,7 +61,7 @@ func New(ctx context.Context, cfg config.Email) Sender {
 			SignatureExpireIn:     7776000, // in seconds = 90 days
 		}, true
 	} else {
-		log.Println("dkim is disabled")
+		log.Println("DKIM is disabled")
 	}
 
 	return &s

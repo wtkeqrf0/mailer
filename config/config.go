@@ -7,19 +7,13 @@ import (
 
 type (
 	Config struct {
-		Server `yaml:"server"`
 		Email  `yaml:"email"`
 		Rabbit `yaml:"rabbit"`
 		Mongo  `yaml:"mongo"`
 	}
 
-	Server struct {
-		Name string
-	}
-
 	Rabbit struct {
 		Email QueueConnection `yaml:"email"`
-		Clog  QueueConnection `yaml:"clog"`
 	}
 
 	Mongo struct {
